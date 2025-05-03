@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dream vs Daquavis Voting - Minecraft Style</title>
+    <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.22.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style type="text/tailwindcss">
+        /* Basic Minecraft-like Button Style */
+        .btn-minecraft {
+            @apply inline-block px-6 py-3 bg-gray-500 text-white font-bold border-4 border-gray-700 border-b-8 rounded-md shadow-md transition-all duration-100 ease-in-out;
+        }
+        .btn-minecraft:hover {
+            @apply bg-gray-600 border-gray-800;
+        }
+        .btn-minecraft:active {
+            @apply border-b-4 translate-y-0.5 shadow-sm;
+        }
+        .btn-minecraft-blue {
+            @apply bg-blue-600 border-blue-800;
+        }
+        .btn-minecraft-blue:hover {
+            @apply bg-blue-700 border-blue-900;
+        }
+        .btn-minecraft-blue:active {
+            @apply border-b-4 translate-y-0.5 shadow-sm;
+        }
+        .btn-minecraft-green {
+            @apply bg-green-600 border-green-800;
+        }
+        .btn-minecraft-green:hover {
+            @apply bg-green-700 border-green-900;
+        }
+        .btn-minecraft-green:active {
+            @apply border-b-4 translate-y-0.5 shadow-sm;
+        }
+        .container-minecraft {
+            @apply bg-yellow-100 border-4 border-yellow-800 p-6 rounded-lg shadow-xl;
+        }
+        .input-minecraft {
+            @apply w-full p-3 border-4 border-gray-700 bg-gray-200 rounded-md focus:outline-none focus:border-blue-500;
+        }
+        .comment-box-minecraft {
+            @apply border-4 border-gray-700 bg-gray-100 p-4 rounded-md;
+        }
+        body {
+            font-family: 'Monospace', sans-serif;
+        }
+        .progress-bar-container {
+            @apply w-full bg-gray-300 rounded-md border border-gray-500 overflow-hidden;
+        }
+        .progress-bar {
+            @apply h-6 bg-green-500 transition-all duration-500 ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-800 p-4">
+    <div id="root"></div>
+    <div id="error" class="container-minecraft mt-4 text-red-700 font-bold" style="display: none;"></div>
+    <script type="text/babel">
+        const { useState, useEffect, Component } = React;
+        class ErrorBoundary extends Component {
+            state = { error: null };
+            static getDerivedStateFromError(error) {
+                return { error: error.message };
+            }
+            componentDidCatch(error, errorInfo) {
+                console.error("Uncaught error:", error, errorInfo);
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) {
+                    errorDiv.innerText = 'Application Error: ' + error.message;
+                    errorDiv.style.display = 'block';
+                }
+            }
+            render() {
+                return this.props.children;
+            }
+        }
+        const App = () => {
+            const [voteData, setVoteData] = useState({
+                dreamVotes: 0,
+                daquavisVotes: 0,
+                dreamPercentage: 0,
+                daquavisPercentage: 0,
+            });
+            const [comments, setComments] = useState([]);
+            const [newComment, setNewComment] = useState('');
+            const [localError, setLocalError] = useState(null);
+            const displayError = (message) => {
+                setLocalError(message);
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) {
+                    errorDiv.innerText = 'API Error: ' + message;
+                    errorDiv.style.display = 'block';
+                    setTimeout(() => {
+                        errorDiv.style.display = 'none';
+                        setLocalError(null);
+                    }, 5000);
+                }
+            };
+            useEffect(() => {
+                console.log('Fetching votes and comments...');
+                fetchVotes();
+                fetchComments();
+            }, []);
+            const fetchVotes = async () => {
+                try {
+                    const res = await fetch('/api/votes');
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
+                    }
+                    const data = await res.json();
+                    console.log('Votes fetched:', data);
+                    setVoteData(data);
+                } catch (err) {
+                    console.error('Fetch votes error:', err);
+                    displayError('Failed to fetch votes: ' + err.message);
+                }
+            };
+            const fetchComments = async () => {
+                try {
+                    const res = await fetch('/api/comments');
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
+                    }
+                    const data = await res.json();
+                    console.log('Comments fetched:', data);
+                    setComments(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                } catch (err) {
+                    console.error('Fetch comments error:', err);
+                    displayError('Failed to fetch comments: ' + err.message);
+                }
+            };
+            const handleVote = async (candidate) => {
+                setLocalError(null);
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) errorDiv.style.display = 'none';
+                try {
+                    const res = await fetch('/api/vote', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ candidate }),
+                    });
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
+                    }
+                    console.log('Vote recorded for:', candidate);
+                    fetchVotes();
+                } catch (err) {
+                    console.error('Vote error:', err);
+                    displayError(`Failed to record vote: ${err.message}`);
+                }
+            };
+            const handleCommentSubmit = async (e) => {
+                e.preventDefault();
+                setLocalError(null);
+                const errorDiv = document.getElementById('error');
+                if (errorDiv) errorDiv.style.display = 'none';
+                if (!newComment.trim()) {
+                    displayError('Comment cannot be empty');
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/comments', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: newComment }),
+                    });
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(`HTTP error! status: ${res.status} - ${errorText}`);
+                    }
+                    console.log('Comment posted:', newComment);
+                    setNewComment('');
+                    fetchComments();
+                } catch (err) {
+                    console.error('Comment post error:', err);
+                    displayError('Failed to post comment: ' + err.message);
+                }
+            };
+            return (
+                <div className="container mx-auto p-4 max-w-4xl">
+                    <div className="container-minecraft mb-8">
+                        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">Dream vs Daquavis Voting</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="text-center container-minecraft p-4">
+                                <img
+                                    src="https://multiplayer.net-cdn.it/thumbs/images/2021/06/05/dream-630x354_rvHGO5b_jpg_0x0_q85.jpg"
+                                    alt="Dream (Looks like a creeper?)"
+                                    className="w-48 h-48 mx-auto rounded-full object-cover border-4 border-green-700"
+                                />
+                                <h2 className="text-2xl font-semibold mt-4 text-gray-800">Dream</h2>
+                                <p className="text-lg text-gray-700 mt-2">Votes: <span className="font-bold">{voteData.dreamVotes}</span></p>
+                                <div className="progress-bar-container mt-2">
+                                    <div className="progress-bar" style={{ width: `${voteData.dreamPercentage}%`, backgroundColor: '#10B981' }}></div>
+                                </div>
+                                <p className="text-sm text-gray-700 mt-1">{voteData.dreamPercentage}%</p>
+                                <button
+                                    onClick={() => handleVote('Dream')}
+                                    className="btn-minecraft btn-minecraft-blue mt-4 w-full"
+                                >
+                                    Vote for Dream
+                                </button>
+                            </div>
+                            <div className="text-center container-minecraft p-4">
+                                <img
+                                    src="https://yt3.googleusercontent.com/6A-k4VB2g5SmEog-k6flwfsv2XqRLh8v43yB8F0fV1LVqKmhakOAmZFQKc2JzxegyfkaiVBj5A=s900-c-k-c0x00ffffff-no-rj"
+                                    alt="Daquavis (Looks like a Steve?)"
+                                    className="w-48 h-48 mx-auto rounded-full object-cover border-4 border-blue-700"
+                                />
+                                <h2 className="text-2xl font-semibold mt-4 text-gray-800">Daquavis</h2>
+                                <p className="text-lg text-gray-700 mt-2">Votes: <span className="font-bold">{voteData.daquavisVotes}</span></p>
+                                <div className="progress-bar-container mt-2">
+                                    <div className="progress-bar" style={{ width: `${voteData.daquavisPercentage}%`, backgroundColor: '#3B82F6' }}></div>
+                                </div>
+                                <p className="text-sm text-gray-700 mt-1">{voteData.daquavisPercentage}%</p>
+                                <button
+                                    onClick={() => handleVote('Daquavis')}
+                                    className="btn-minecraft btn-minecraft-blue mt-4 w-full"
+                                >
+                                    Vote for Daquavis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="container-minecraft">
+                        <h2 className="text-2xl font-semibold mb-4 text-gray-800">Comments <span className="text-gray-600 text-base">(Like a chat log)</span></h2>
+                        <form onSubmit={handleCommentSubmit} className="mb-6">
+                            <textarea
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                placeholder="Type your blocky comment here..."
+                                className="input-minecraft mb-4 h-24"
+                                rows="4"
+                            ></textarea>
+                            <button
+                                type="submit"
+                                className="btn-minecraft btn-minecraft-green w-full"
+                            >
+                                Post Comment
+                            </button>
+                        </form>
+                        <div className="space-y-4 comment-box-minecraft h-64 overflow-y-auto">
+                            {comments.length === 0 ? (
+                                <p className="text-gray-600 text-center">No comments yet. Be the first!</p>
+                            ) : (
+                                comments.map((comment, index) => (
+                                    <div key={comment._id || index} className="p-3 bg-gray-200 border-2 border-gray-400 rounded-md text-gray-800">
+                                        <p className="break-words">{comment.text}</p>
+                                        <p className="text-xs text-gray-600 mt-1">
+                                            {new Date(comment.createdAt).toLocaleString()}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        try {
+            ReactDOM.render(
+                <ErrorBoundary>
+                    <App />
+                </ErrorBoundary>,
+                document.getElementById('root')
+            );
+        } catch (err) {
+            console.error("Render Error outside ErrorBoundary:", err);
+            const errorDiv = document.getElementById('error');
+            if (errorDiv) {
+                errorDiv.innerText = 'Fatal Render Error: ' + err.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+
+</html>
